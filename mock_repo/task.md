@@ -1,0 +1,2 @@
+# Tarea: Añadir método de multiplicación
+Por favor, modifica la clase Calculator.java para añadir un método `multiply(int a, int b)` que devuelva el producto de ambos números, incluyendo una validación de seguridad si los números son negativos (lanzando una IllegalArgumentException).
