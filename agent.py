@@ -1,14 +1,11 @@
 import os
+import subprocess
 from openai import OpenAI
-from dotenv import load_dotenv
 
-# Cargamos variables de entorno (por si usas un fichero .env con tu API Key)
-load_dotenv()
-
-# Inicializamos el cliente de OpenAI (puedes cambiar la base URL si usas Ollama/local o Anthropic)
+# Inicializamos el cliente apuntando a Ollama local
 client = OpenAI(
     base_url="http://localhost:11434/v1",
-    api_key="ollama"  # Ollama no pide key real pero el SDK exige un string
+    api_key="ollama"
 )
 
 
@@ -17,19 +14,52 @@ def read_file(file_path: str) -> str:
         return f.read()
 
 
-def run_agent():
-    print("🤖 [AI Agent] Leyendo especificaciones y código fuente...")
+def compile_and_test() -> tuple[bool, str]:
+    """Compila y ejecuta los tests de Java para validar el código generado."""
+    print("🛡️ [Guardián] Validando compilación y tests...")
 
-    # 1. Leemos la tarea y el código actual del mock_repo
+    try:
+        # 1. Compilar las clases dentro del mock_repo
+        compile_process = subprocess.run(
+            ["javac", "src/com/factory/mock/Calculator.java", "src/com/factory/mock/CalculatorTest.java"],
+            cwd="mock_repo",
+            capture_output=True,
+            text=True
+        )
+
+        if compile_process.returncode != 0:
+            error_msg = f"ERROR DE COMPILACIÓN:\n{compile_process.stderr}"
+            return False, error_msg
+
+        # 2. Ejecutar el test unitario
+        run_process = subprocess.run(
+            ["java", "-cp", "src", "com.factory.mock.CalculatorTest"],
+            cwd="mock_repo",
+            capture_output=True,
+            text=True
+        )
+
+        if run_process.returncode != 0:
+            error_msg = f"ERROR EN LOS TESTS:\n{run_process.stderr}\n{run_process.stdout}"
+            return False, error_msg
+
+        return True, "¡Compilación y tests exitosos!"
+
+    except Exception as e:
+        return False, f"Excepción ejecutando comandos del sistema: {str(e)}"
+
+
+def run_agent():
+    print("🤖 [AI Agent Local] Iniciando ciclo de la Factoría...")
+
     task_description = read_file("mock_repo/task.md")
     current_code = read_file("mock_repo/src/com/factory/mock/Calculator.java")
 
-    # 2. Definimos el Prompt del Sistema (las directrices del rol de la IA)
     system_prompt = (
-        "Eres un ingeniero de software senior experto en refactorización y desarrollo backend. "
-        "Tu objetivo es leer una tarea de desarrollo y el código actual de un fichero, "
-        "y devolver únicamente el código actualizado y completo cumpliendo con los requisitos, "
-        "sin explicaciones adicionales, en un bloque de código limpio."
+        "Eres un ingeniero de software senior experto en desarrollo backend en Java. "
+        "Tu objetivo es leer una tarea y el código actual, y devolver únicamente el código "
+        "actualizado y completo cumpliendo con los requisitos, sin explicaciones adicionales, "
+        "en un bloque de código limpio."
     )
 
     user_prompt = f"""
@@ -42,29 +72,40 @@ def run_agent():
     Por favor, genera la versión actualizada completa de Calculator.java aplicando los cambios requeridos.
     """
 
-    print("🧠 [AI Agent] Analizando y generando la propuesta con el LLM...")
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        print(f"🧠 [Intento {attempt}/{max_retries}] Generando código con el LLM local...")
 
-    # 3. Llamada al modelo
-    response = client.chat.completions.create(
-        model="qwen2.5:1.5b",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.1  # Baja temperatura para que sea más determinista y técnico
-    )
+        response = client.chat.completions.create(
+            model="qwen2.5:1.5b",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1
+        )
 
-    proposed_code = response.choices[0].message.content
+        proposed_code = response.choices[0].message.content
+        proposed_code = proposed_code.replace("```java", "").replace("```", "").strip()
 
-    # Limpiamos los bloques de código markdown si los trae la respuesta
-    proposed_code = proposed_code.replace("```java", "").replace("```", "").strip()
+        output_path = "mock_repo/src/com/factory/mock/Calculator.java"
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(proposed_code)
 
-    # 4. Guardamos la propuesta en un fichero temporal o directamente sobreescribimos (por ahora lo guardamos como propuesta)
-    output_path = "mock_repo/src/com/factory/mock/Calculator.java"
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(proposed_code)
+        # Ejecutamos el Guardián de Calidad
+        success, message = compile_and_test()
 
-    print(f"✅ [AI Agent] ¡Propuesta aplicada en {output_path}!")
+        if success:
+            print(f"✅ [Éxito] {message}")
+            break
+        else:
+            print(f"❌ [Falló la validación]:\n{message}")
+            if attempt < max_retries:
+                print("🔄 Reintentando enviando el error al agente para corrección...")
+                # Alimentamos el feedback del error al prompt del usuario para el siguiente intento
+                user_prompt += f"\n\nATENCIÓN: Tu intento anterior falló con este error de compilación/test:\n{message}\nPor favor, corrígelo."
+            else:
+                print("🚨 Se han agotado los intentos máximos sin pasar la validación.")
 
 
 if __name__ == "__main__":
