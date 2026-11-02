@@ -21,8 +21,8 @@ def run_agent():
     print("🤖 [AI Agent] Leyendo especificaciones y código fuente...")
 
     # 1. Leemos la tarea y el código actual del mock_repo
-    task_description = read_file("task.md")
-    current_code = read_file("mock_repo/src/Calculator.java")
+    task_description = read_file("mock_repo/task.md")
+    current_code = read_file("mock_repo/src/com/factory/mock/Calculator.java")
 
     # 2. Definimos el Prompt del Sistema (las directrices del rol de la IA)
     system_prompt = (
