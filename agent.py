@@ -46,7 +46,7 @@ def run_agent():
 
     # 3. Llamada al modelo
     response = client.chat.completions.create(
-        model="qwen2.5-coder:7b",  # O el modelo que prefieras usar
+        model="qwen2.5:1.5b",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
