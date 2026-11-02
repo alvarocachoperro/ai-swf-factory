@@ -60,7 +60,7 @@ def run_agent():
     proposed_code = proposed_code.replace("```java", "").replace("```", "").strip()
 
     # 4. Guardamos la propuesta en un fichero temporal o directamente sobreescribimos (por ahora lo guardamos como propuesta)
-    output_path = "mock_repo/src/Calculator.java"
+    output_path = "mock_repo/src/com/factory/mock/Calculator.java"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(proposed_code)
 
